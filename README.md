@@ -1,2 +1,0 @@
-# hensansya
-tesut
