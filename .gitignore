@@ -1,0 +1,3 @@
+.env  # 環境変数ファイル
+secrets.json  # シークレット情報が保存されたJSONファイル
+config/database.yml  # データベース接続情報
