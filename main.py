@@ -52,18 +52,17 @@ async def on_voice_state_update(member, before, after):
         if member in joined_members_introductions:
             del joined_members_introductions[member]
 
-    # 参加している全メンバーの自己紹介を再投稿
+    # 参加している各メンバーの自己紹介を個別にEmbedで送信
     if after.channel is not None or (before.channel is not None and after.channel is None):
-        # Embedメッセージを準備
-        embed = discord.Embed(title="現在の参加メンバーの自己紹介", color=discord.Color.blue())
         for m, intro in joined_members_introductions.items():
-            # メンバーごとにアバター付きで自己紹介を追加
-            embed.add_field(name=m.display_name, value=intro, inline=False)
+            # メンバーごとのEmbedメッセージを作成
+            embed = discord.Embed(title=f"{m.display_name}さんの自己紹介", description=intro, color=discord.Color.blue())
             embed.set_thumbnail(url=m.avatar.url)
-
-        # 通話チャンネルが存在する場合にのみ送信
-        if after.channel:
-            await after.channel.send(embed=embed)
+            
+            # 通話チャンネルが存在する場合にのみ送信
+            if after.channel:
+                await after.channel.send(embed=embed)
 
 # Botを実行
 bot.run(TOKEN)
+
