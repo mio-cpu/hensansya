@@ -4,4 +4,4 @@ COPY requirements.txt /bot/
 RUN pip install -r requirements.txt
 EXPOSE 8080
 COPY . /bot
-CMD python main.py
+CMD python main.py & python status.py  # 両方のスクリプトを並行して実行
