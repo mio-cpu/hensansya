@@ -4,4 +4,4 @@ COPY requirements.txt /bot/
 RUN pip install -r requirements.txt
 EXPOSE 8080
 COPY . /bot
-CMD python status.py
+CMD python main.py
