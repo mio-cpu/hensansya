@@ -24,6 +24,10 @@ async def on_ready():
 
 @bot.event
 async def on_voice_state_update(member, before, after):
+    # 入退室がない場合は何もしない
+    if before.channel == after.channel:
+        return
+
     # 自己紹介チャンネルを取得
     intro_channel = bot.get_channel(INTRO_CHANNEL_ID)
 
