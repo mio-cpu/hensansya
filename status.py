@@ -1,10 +1,20 @@
+import os
 import discord
+from discord.ext import commands
 
-client = discord.Client()
+# 環境変数からBOTのトークンを取得
+TOKEN = os.getenv("BOT_TOKEN")
 
-@client.event
+# Botのインスタンスを作成
+intents = discord.Intents.default()
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+# Botが起動したときに実行されるイベント
+@bot.event
 async def on_ready():
-    print(f'We have logged in as {client.user}')
-    await client.user.set_activity('編纂中', type=discord.ActivityType.custom)
+    print(f"Logged in as {bot.user}")
+    # ステータスを「編纂中」に設定
+    await bot.change_presence(activity=discord.Game(name="編纂中"))
 
-client.run('YOUR_BOT_TOKEN')
+# Botを起動
+bot.run(TOKEN)
