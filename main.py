@@ -10,8 +10,8 @@ intents.voice_states = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 TOKEN = os.getenv('DISCORD_TOKEN')
 INTRO_CHANNEL_ID = 1285729396971274332
+SECRET_ROLE_NAME = "秘密のロール"
 
-# 参加中のメンバーの自己紹介とメッセージIDを管理する辞書
 joined_members_introductions = {}
 member_message_ids = {}
 
@@ -21,7 +21,7 @@ async def on_ready():
 
 @bot.event
 async def on_voice_state_update(member, before, after):
-    if member.bot or before.channel == after.channel:
+    if member.bot or before.channel == after.channel or any(role.name == SECRET_ROLE_NAME for role in member.roles):
         return
 
     intro_channel = bot.get_channel(INTRO_CHANNEL_ID)
@@ -40,18 +40,15 @@ async def on_voice_state_update(member, before, after):
         embed.set_thumbnail(url=member.avatar.url)
         sent_message = await after.channel.send(embed=embed)
         
-        # メッセージIDを保存
         member_message_ids[member] = sent_message.id
 
     elif before.channel is not None and after.channel is None:
-        if member in joined_members_introductions:
-            del joined_members_introductions[member]
-        
-        # 該当メンバーのEmbedメッセージを削除
+        joined_members_introductions.pop(member, None)
+
         if member in member_message_ids:
-            message_id = member_message_ids[member]
+            message_id = member_message_ids.pop(member)
             message = await before.channel.fetch_message(message_id)
             await message.delete()
-            del member_message_ids[member]
 
 bot.run(TOKEN)
+
