@@ -3,7 +3,7 @@ import discord
 from discord.ext import commands
 
 # 環境変数からBOTのトークンを取得
-TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("DISCORD_TOKEN")
 
 # Botのインスタンスを作成
 intents = discord.Intents.default()
