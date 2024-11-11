@@ -13,7 +13,7 @@ INTRO_CHANNEL_ID = 1285729396971274332
 SECRET_ROLE_NAME = "秘密のロール"
 
 active_members = []
-last_embed_message = None
+last_embed_messages = {}
 
 @bot.event
 async def on_ready():
@@ -27,17 +27,16 @@ async def get_intro_message(member):
             return message.content
     return "自己紹介が見つかりませんでした。"
 
-async def update_voice_channel_embed(channel):
-    global last_embed_message
-    embed = discord.Embed(title="ボイスチャンネルの自己紹介", color=discord.Color.blue())
+async def post_individual_embeds(channel):
     for member in active_members:
         intro_text = await get_intro_message(member)
-        embed.add_field(name=member.display_name, value=intro_text, inline=False)
-    
-    if last_embed_message:
-        await last_embed_message.delete()
-
-    last_embed_message = await channel.send(embed=embed)
+        embed = discord.Embed(title=f"{member.display_name}の自己紹介", description=intro_text, color=discord.Color.blue())
+        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
+        
+        if member in last_embed_messages:
+            await last_embed_messages[member].delete()
+        
+        last_embed_messages[member] = await channel.send(embed=embed)
 
 @bot.event
 async def on_voice_state_update(member, before, after):
@@ -49,11 +48,14 @@ async def on_voice_state_update(member, before, after):
     if after.channel and (before.channel is None or before.channel.id != after.channel.id):
         if member not in active_members:
             active_members.append(member)
-        await update_voice_channel_embed(after.channel)
+        await post_individual_embeds(after.channel)
     elif before.channel and (after.channel is None or before.channel.id != after.channel.id):
         if member in active_members:
             active_members.remove(member)
+            if member in last_embed_messages:
+                await last_embed_messages[member].delete()
+                del last_embed_messages[member]
         if before.channel:
-            await update_voice_channel_embed(before.channel)
+            await post_individual_embeds(before.channel)
 
 bot.run(TOKEN)
