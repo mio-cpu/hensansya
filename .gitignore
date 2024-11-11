@@ -1,0 +1,2 @@
+# SQLiteのデータベースファイルをGitの管理対象外にする
+/data/bot_config.db
