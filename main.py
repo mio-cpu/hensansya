@@ -28,30 +28,39 @@ async def get_intro_message(member):
     return "自己紹介が見つかりませんでした。"
 
 async def post_individual_embeds(channel):
+    # 既存のEmbedメッセージをすべて削除
+    for message in last_embed_messages.values():
+        await message.delete()
+    last_embed_messages.clear()
+
+    # 現在の参加メンバー全員分のEmbedを新規に作成して投稿
     for member in active_members:
         intro_text = await get_intro_message(member)
         embed = discord.Embed(title=f"{member.display_name}の自己紹介", description=intro_text, color=discord.Color.blue())
         embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
-        
-        if member in last_embed_messages:
-            await last_embed_messages[member].delete()
-        
+
+        # Embedをチャンネルに送信し、辞書に保存
         last_embed_messages[member] = await channel.send(embed=embed)
 
 @bot.event
 async def on_voice_state_update(member, before, after):
     secret_role = discord.utils.get(member.guild.roles, name=SECRET_ROLE_NAME)
 
+    # 秘密のロールを持っているメンバーを無視
     if secret_role in member.roles:
         return
 
+    # メンバーがボイスチャンネルに入室した場合
     if after.channel and (before.channel is None or before.channel.id != after.channel.id):
         if member not in active_members:
             active_members.append(member)
         await post_individual_embeds(after.channel)
+
+    # メンバーがボイスチャンネルから退出した場合
     elif before.channel and (after.channel is None or before.channel.id != after.channel.id):
         if member in active_members:
             active_members.remove(member)
+            # 該当メンバーのEmbedを削除
             if member in last_embed_messages:
                 await last_embed_messages[member].delete()
                 del last_embed_messages[member]
