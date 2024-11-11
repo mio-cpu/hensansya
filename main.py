@@ -6,59 +6,54 @@ intents = discord.Intents.default()
 intents.members = True
 intents.guilds = True
 intents.voice_states = True
-
 bot = commands.Bot(command_prefix="!", intents=intents)
+
 TOKEN = os.getenv('DISCORD_TOKEN')
+INTRO_CHANNEL_ID = 1285729396971274332
 SECRET_ROLE_NAME = "秘密のロール"
 
-# サーバーごとの自己紹介チャンネルIDを保存する辞書
-server_intro_channels = {}
-joined_members_introductions = {}
-member_message_ids = {}
+active_members = []
+last_embed_message = None
 
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
-    await bot.tree.sync()  # スラッシュコマンドの同期
+    await bot.tree.sync()
 
-@bot.tree.command(name="set_intro_channel", description="自己紹介用チャンネルを設定します")
-async def set_intro_channel(interaction: discord.Interaction, channel: discord.TextChannel):
-    server_intro_channels[interaction.guild.id] = channel.id
-    await interaction.response.send_message(f"自己紹介チャンネルが {channel.mention} に設定されました！", ephemeral=True)
+async def get_intro_message(member):
+    intro_channel = bot.get_channel(INTRO_CHANNEL_ID)
+    async for message in intro_channel.history(limit=500):
+        if message.author == member:
+            return message.content
+    return "自己紹介が見つかりませんでした。"
+
+async def update_voice_channel_embed(channel):
+    global last_embed_message
+    embed = discord.Embed(title="ボイスチャンネルの自己紹介", color=discord.Color.blue())
+    for member in active_members:
+        intro_text = await get_intro_message(member)
+        embed.add_field(name=member.display_name, value=intro_text, inline=False)
+    
+    if last_embed_message:
+        await last_embed_message.delete()
+
+    last_embed_message = await channel.send(embed=embed)
 
 @bot.event
 async def on_voice_state_update(member, before, after):
-    if member.bot or before.channel == after.channel or any(role.name == SECRET_ROLE_NAME for role in member.roles):
+    secret_role = discord.utils.get(member.guild.roles, name=SECRET_ROLE_NAME)
+
+    if secret_role in member.roles:
         return
 
-    intro_channel_id = server_intro_channels.get(member.guild.id)
-    if not intro_channel_id:
-        return  # 自己紹介チャンネルが未設定の場合、処理を中断
-
-    intro_channel = bot.get_channel(intro_channel_id)
-
-    if before.channel is None and after.channel is not None:
-        introduction = None
-        async for message in intro_channel.history(limit=500):
-            if message.author == member:
-                introduction = message.content
-                break
-
-        intro_text = introduction if introduction else "自己紹介が見つかりませんでした。"
-        joined_members_introductions[member] = intro_text
-
-        embed = discord.Embed(title=f"{member.display_name}さんの自己紹介", description=intro_text, color=discord.Color.blue())
-        embed.set_thumbnail(url=member.avatar.url)
-        sent_message = await after.channel.send(embed=embed)
-        
-        member_message_ids[member] = sent_message.id
-
-    elif before.channel is not None and after.channel is None:
-        joined_members_introductions.pop(member, None)
-
-        if member in member_message_ids:
-            message_id = member_message_ids.pop(member)
-            message = await before.channel.fetch_message(message_id)
-            await message.delete()
+    if after.channel and (before.channel is None or before.channel.id != after.channel.id):
+        if member not in active_members:
+            active_members.append(member)
+        await update_voice_channel_embed(after.channel)
+    elif before.channel and (after.channel is None or before.channel.id != after.channel.id):
+        if member in active_members:
+            active_members.remove(member)
+        if before.channel:
+            await update_voice_channel_embed(before.channel)
 
 bot.run(TOKEN)
