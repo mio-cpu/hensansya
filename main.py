@@ -4,7 +4,10 @@ import os
 import sqlite3
 
 DB_FILE = '/bot/data/bot_config.db'  # データベースファイルのパス
-intents = discord.Intents.all()  # 全てのインテントを許可
+intents = discord.Intents.default()
+intents.members = True
+intents.guilds = True
+intents.voice_states = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -39,8 +42,7 @@ SECRET_ROLE_NAMES = get_config('secret_role_names').split(',') if get_config('se
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
-    await bot.tree.sync(guild=discord.Object(id=1285691131446825105))  # 特定のサーバーで同期
-    print("Slash commands synchronized!")
+    await bot.tree.sync()
 
 @bot.tree.command(name="set_intro_channel", description="自己紹介チャンネルのIDを設定します")
 async def set_intro_channel(interaction: discord.Interaction, channel: discord.TextChannel):
