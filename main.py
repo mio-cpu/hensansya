@@ -10,9 +10,8 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 TOKEN = os.getenv('DISCORD_TOKEN')
 
-# 初期値をNoneに設定
-SECRET_ROLE_NAME = None
 INTRO_CHANNEL_ID = None
+SECRET_ROLE_NAMES = []
 
 active_members = []
 last_embed_messages = {}
@@ -22,19 +21,27 @@ async def on_ready():
     print(f'Logged in as {bot.user}')
     await bot.tree.sync()
 
-# スラッシュコマンドで自己紹介チャンネルを設定
 @bot.tree.command(name="set_intro_channel", description="自己紹介チャンネルのIDを設定します")
 async def set_intro_channel(interaction: discord.Interaction, channel: discord.TextChannel):
     global INTRO_CHANNEL_ID
     INTRO_CHANNEL_ID = channel.id
     await interaction.response.send_message(f"自己紹介チャンネルを {channel.mention} に設定しました。", ephemeral=True)
 
-# スラッシュコマンドで秘密のロール名を設定
-@bot.tree.command(name="set_secret_role", description="ボットが反応しないロール名を設定します")
-async def set_secret_role(interaction: discord.Interaction, role: discord.Role):
-    global SECRET_ROLE_NAME
-    SECRET_ROLE_NAME = role.name
-    await interaction.response.send_message(f"秘密のロールを '{role.name}' に設定しました。", ephemeral=True)
+@bot.tree.command(name="add_secret_role", description="ボットが反応しないロールを追加します")
+async def add_secret_role(interaction: discord.Interaction, role: discord.Role):
+    if role.name not in SECRET_ROLE_NAMES:
+        SECRET_ROLE_NAMES.append(role.name)
+        await interaction.response.send_message(f"秘密のロール '{role.name}' を追加しました。", ephemeral=True)
+    else:
+        await interaction.response.send_message(f"'{role.name}' は既に追加されています。", ephemeral=True)
+
+@bot.tree.command(name="remove_secret_role", description="ボットが反応しないロールを削除します")
+async def remove_secret_role(interaction: discord.Interaction, role: discord.Role):
+    if role.name in SECRET_ROLE_NAMES:
+        SECRET_ROLE_NAMES.remove(role.name)
+        await interaction.response.send_message(f"秘密のロール '{role.name}' を削除しました。", ephemeral=True)
+    else:
+        await interaction.response.send_message(f"'{role.name}' は秘密のロールに設定されていません。", ephemeral=True)
 
 async def get_intro_message(member):
     intro_channel = bot.get_channel(INTRO_CHANNEL_ID)
@@ -60,10 +67,8 @@ async def post_individual_embeds(channel):
 
 @bot.event
 async def on_voice_state_update(member, before, after):
-    if SECRET_ROLE_NAME:
-        secret_role = discord.utils.get(member.guild.roles, name=SECRET_ROLE_NAME)
-        if secret_role in member.roles:
-            return
+    if any(role.name in SECRET_ROLE_NAMES for role in member.roles):
+        return
 
     if after.channel and (before.channel is None or before.channel.id != after.channel.id):
         if member not in active_members:
