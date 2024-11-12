@@ -13,7 +13,7 @@ INTRO_CHANNEL_ID = 1285729396971274332
 SECRET_ROLE_NAME = "秘密のロール"
 
 joined_members_introductions = {}
-member_message_ids = {}
+message_ids = []
 
 @bot.event
 async def on_ready():
@@ -36,19 +36,22 @@ async def on_voice_state_update(member, before, after):
         intro_text = introduction if introduction else "自己紹介が見つかりませんでした。"
         joined_members_introductions[member] = intro_text
 
-        embed = discord.Embed(title=f"{member.display_name}さんの自己紹介", description=intro_text, color=discord.Color.blue())
-        embed.set_thumbnail(url=member.avatar.url)
-        sent_message = await after.channel.send(embed=embed)
-        
-        member_message_ids[member] = sent_message.id
-
     elif before.channel is not None and after.channel is None:
         joined_members_introductions.pop(member, None)
 
-        if member in member_message_ids:
-            message_id = member_message_ids.pop(member)
-            message = await before.channel.fetch_message(message_id)
+    if after.channel:
+        # 既存のEmbedメッセージを削除
+        for message_id in message_ids:
+            message = await after.channel.fetch_message(message_id)
             await message.delete()
+        message_ids.clear()
+
+        # 現在入室中のメンバー全員の自己紹介を再送信
+        for m, intro in joined_members_introductions.items():
+            embed = discord.Embed(title=f"{m.display_name}さんの自己紹介", description=intro, color=discord.Color.blue())
+            embed.set_thumbnail(url=m.avatar.url)
+            sent_message = await after.channel.send(embed=embed)
+            message_ids.append(sent_message.id)
 
 bot.run(TOKEN)
 
