@@ -10,7 +10,7 @@ intents.voice_states = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 TOKEN = os.getenv('DISCORD_TOKEN')
 INTRO_CHANNEL_ID = 1285729396971274332
-SECRET_ROLE_NAME = "秘密のロール"  # 「秘密のロール」という名前の役職
+SECRET_ROLE_NAME = "秘密のロール"  
 
 # 参加中のメンバーの自己紹介とメッセージIDを管理する辞書
 joined_members_introductions = {}
