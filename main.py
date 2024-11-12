@@ -70,12 +70,14 @@ async def on_voice_state_update(member, before, after):
     if any(role.name in SECRET_ROLE_NAMES for role in member.roles):
         return
 
-    if after.channel and (before.channel is None or before.channel.id != after.channel.id):
+    # ボイスチャンネルに新しく参加したときのみ実行
+    if after.channel and before.channel != after.channel:
         if member not in active_members:
             active_members.append(member)
-        await post_individual_embeds(after.channel)
+            await post_individual_embeds(after.channel)
 
-    elif before.channel and (after.channel is None or before.channel.id != after.channel.id):
+    # ボイスチャンネルから退出したとき
+    elif before.channel and after.channel != before.channel:
         if member in active_members:
             active_members.remove(member)
             if member in last_embed_messages:
