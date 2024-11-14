@@ -40,17 +40,25 @@ async def on_voice_state_update(member, before, after):
             else:
                 introductions[member.id] = "自己紹介が見つかりませんでした。"
 
-            embed = discord.Embed(title=f"{member.display_name}が通話に参加しました！", color=discord.Color.blue())
-            embed.add_field(name="自己紹介", value=introductions[member.id], inline=False)
-            embed.set_thumbnail(url=member.avatar.url)
-            introductions[member.id] = await after.channel.send(embed=embed)
+            await update_introduction_messages(after.channel)
 
         elif before.channel and after.channel is None:
             if member.id in introductions:
-                await introductions[member.id].delete()
                 del introductions[member.id]
+
+            await update_introduction_messages(before.channel)
 
     except Exception as e:
         print(f"Error in on_voice_state_update: {e}")
+
+async def update_introduction_messages(channel):
+    await channel.purge(limit=100, check=lambda m: m.author == bot.user)
+
+    for user_id, intro_text in introductions.items():
+        user = bot.get_user(user_id)
+        embed = discord.Embed(title=f"{user.display_name}の自己紹介", color=discord.Color.blue())
+        embed.add_field(name="自己紹介", value=intro_text, inline=False)
+        embed.set_thumbnail(url=user.avatar.url)
+        await channel.send(embed=embed)
 
 bot.run(TOKEN)
