@@ -48,6 +48,10 @@ async def on_voice_state_update(member, before, after):
 
             await update_introduction_messages(before.channel)
 
+        elif before.channel and after.channel:
+            await update_introduction_messages(before.channel)
+            await update_introduction_messages(after.channel)
+
     except Exception as e:
         print(f"Error in on_voice_state_update: {e}")
 
@@ -56,9 +60,10 @@ async def update_introduction_messages(channel):
 
     for user_id, intro_text in introductions.items():
         user = bot.get_user(user_id)
-        embed = discord.Embed(title=f"{user.display_name}の自己紹介", color=discord.Color.blue())
-        embed.add_field(name="自己紹介", value=intro_text, inline=False)
-        embed.set_thumbnail(url=user.avatar.url)
-        await channel.send(embed=embed)
+        if user and channel.guild.get_member(user.id).voice.channel == channel:
+            embed = discord.Embed(title=f"{user.display_name}の自己紹介", color=discord.Color.blue())
+            embed.add_field(name="自己紹介", value=intro_text, inline=False)
+            embed.set_thumbnail(url=user.avatar.url)
+            await channel.send(embed=embed)
 
 bot.run(TOKEN)
