@@ -28,12 +28,15 @@ async def on_ready():
 
 @bot.event
 async def on_voice_state_update(member, before, after):
+    """
+    ユーザーがボイスチャンネルに移動した際、自己紹介メッセージを送信
+    """
     if member.bot:
         return
 
     intro_channel = bot.get_channel(INTRO_CHANNEL_ID)
 
-    # チャンネルに移動した場合、自己紹介を送信
+    # ユーザーがボイスチャンネルに参加した場合
     if after.channel and (before.channel != after.channel):
         if any(role.name == SECRET_ROLE_NAME for role in member.roles):
             return  # 指定のロールを持つユーザーはスキップ
@@ -43,10 +46,10 @@ async def on_voice_state_update(member, before, after):
             if message.author == member:
                 messages.append(message)
 
-        channel = after.channel
+        target_channel = after.channel
 
         # 過去の BOT メッセージを削除
-        await channel.purge(limit=100, check=lambda m: m.author == bot.user)
+        await target_channel.purge(limit=100, check=lambda m: m.author == bot.user)
 
         if messages:
             for msg in messages:
@@ -56,22 +59,25 @@ async def on_voice_state_update(member, before, after):
                     color=discord.Color.blue(),
                 )
                 embed.set_thumbnail(url=member.avatar.url if member.avatar else "")
-                await channel.send(embed=embed)
+                await target_channel.send(embed=embed)
         else:
-            await channel.send(
+            await target_channel.send(
                 f"{member.display_name}さんが入室しましたが、自己紹介が見つかりませんでした。"
             )
 
 
 @bot.event
 async def on_message(message):
+    """
+    匿名メッセージを処理
+    """
     if message.author.bot or not message.guild:
         return
 
     # 匿名メッセージ用チャンネルでの処理
     if message.channel.id == ANONYMOUS_CHANNEL_ID:
         try:
-            # メッセージ内容を取得
+            # 元のメッセージ内容を取得
             original_content = message.content.strip()
 
             # メッセージ内容が空か確認
