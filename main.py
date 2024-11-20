@@ -18,6 +18,12 @@ introductions = {}
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
+    try:
+        # スラッシュコマンドを同期
+        synced = await bot.tree.sync()  
+        print(f"Synced {len(synced)} commands")
+    except Exception as e:
+        print(f"Error syncing commands: {e}")
 
 @bot.event
 async def on_voice_state_update(member, before, after):
@@ -74,5 +80,21 @@ async def update_introduction_messages(channel):
             embed.add_field(name="自己紹介", value=intro_text, inline=False)
             embed.set_thumbnail(url=user.avatar.url)
             await channel.send(embed=embed)
+
+# 匿名メッセージを送信するスラッシュコマンドの追加
+@bot.tree.command(name="匿名メッセージ", description="BOTが代わりに匿名でメッセージを送信します")
+async def anonymous_message(interaction: discord.Interaction, message: str):
+    """スラッシュコマンドによる匿名メッセージ送信"""
+    try:
+        await interaction.response.defer(ephemeral=True)  # ユーザーには一時的な応答を表示
+        # メッセージをチャンネルに投稿
+        await interaction.channel.send(message)
+        # ユーザーに成功の通知
+        await interaction.followup.send("メッセージを匿名で送信しました！", ephemeral=True)
+    except Exception as e:
+        # エラーが発生した場合
+        await interaction.followup.send(f"エラーが発生しました: {e}", ephemeral=True)
+        print(f"Error in anonymous_message: {e}")
+        traceback.print_exc()
 
 bot.run(TOKEN)
