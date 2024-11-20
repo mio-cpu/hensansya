@@ -98,6 +98,7 @@ async def on_message(message):
         embed.set_author(name="匿名のメッセージ")
         
         await message.channel.send(embed=embed)
+        return  # ここで処理を終了して、bot.process_commandsを実行しない
 
     await bot.process_commands(message)
 
