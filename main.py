@@ -11,11 +11,8 @@ bot = commands.Bot(command_prefix="!", intents=intents, reconnect=True)
 
 TOKEN = os.getenv('DISCORD_TOKEN')
 INTRO_CHANNEL_ID = 1285729396971274332  # 自己紹介チャンネルのID
-ANONYMOUS_CHANNEL_ID = 1308544883899764746  # 目安箱チャンネルのID
+ANONYMOUS_CHANNEL_ID = 123456789012345678  # 目安箱チャンネルのID
 SECRET_ROLE_NAME = "秘密のロール"
-
-# ブロックする不適切な言葉リスト
-BLOCKED_WORDS = ["暴言1", "卑猥な言葉2", "禁止語句3"]  # 具体的な単語を追加
 
 introductions = {}
 
@@ -81,39 +78,22 @@ async def update_introduction_messages(channel):
 
 @bot.event
 async def on_message(message):
-    print("メッセージが検出されました")  # on_messageが呼び出されているか確認
-
-    # ボットやDMには反応しない
     if message.author.bot or message.guild is None:
-        print("ボットまたはDMからのメッセージなので無視します")
         return
 
-    # 目安箱チャンネルでの匿名メッセージ
     if message.channel.id == ANONYMOUS_CHANNEL_ID:
-        print("目安箱にメッセージが投稿されました")  # 目安箱チャンネルであるか確認
-
-        # 不適切な単語チェック
-        if any(blocked_word in message.content.lower() for blocked_word in BLOCKED_WORDS):
-            await message.delete()
-            await message.channel.send(f"{message.author.mention} 不適切な内容が含まれているため、投稿は許可されません。")
-            print("不適切な単語が検出され、メッセージが削除されました")
-            return
-
-        # 匿名メッセージとして再投稿
+        await message.delete()
         anonymous_message = message.content
+        
         embed = discord.Embed(
             description=anonymous_message,
             color=discord.Color.gray()
         )
         embed.set_author(name="匿名のメッセージ")
-
-        try:
-            await message.delete()
-            await message.channel.send(embed=embed)
-            print("匿名メッセージが正常に送信されました")  # 匿名メッセージが送信されたか確認
-        except Exception as e:
-            print(f"匿名メッセージの送信に失敗しました: {e}")  # エラーハンドリング
-        return
+        
+        await message.channel.send(embed=embed)
 
     await bot.process_commands(message)
+
 bot.run(TOKEN)
+
