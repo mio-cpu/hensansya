@@ -10,11 +10,8 @@ intents.voice_states = True
 bot = commands.Bot(command_prefix="!", intents=intents, reconnect=True)
 
 TOKEN = os.getenv('DISCORD_TOKEN')
-INTRO_CHANNEL_ID = 1285729396971274332  # 自己紹介チャンネルのID
-ANONYMOUS_CHANNEL_ID = 1308544883899764746  # 目安箱チャンネルのID
+INTRO_CHANNEL_ID = 1285729396971274332
 SECRET_ROLE_NAME = "秘密のロール"
-
-BLOCKED_WORDS = ["暴言1", "卑猥な言葉2", "禁止語句3"]  # 不適切な単語を追加
 
 introductions = {}
 
@@ -78,33 +75,4 @@ async def update_introduction_messages(channel):
             embed.set_thumbnail(url=user.avatar.url)
             await channel.send(embed=embed)
 
-@bot.event
-async def on_message(message):
-    if message.author.bot or message.guild is None:
-        return
-
-    if message.channel.id == ANONYMOUS_CHANNEL_ID:
-        if any(blocked_word in message.content.lower() for blocked_word in BLOCKED_WORDS):
-            await message.channel.send(f"{message.author.mention} 不適切な内容が含まれているため、投稿は許可されません。")
-            return
-
-        anonymous_message = message.content
-
-        embed = discord.Embed(
-            description=anonymous_message,
-            color=discord.Color.gray()
-        )
-        embed.set_author(name="匿名のメッセージ")
-
-        try:
-            await message.delete()  # 元のメッセージを削除
-            await message.channel.send(embed=embed)
-        except discord.Forbidden:
-            print("メッセージを削除する権限がありません")
-        except discord.HTTPException as e:
-            print(f"メッセージ送信中にエラーが発生しました: {e}")
-
-    await bot.process_commands(message)
-
 bot.run(TOKEN)
-
