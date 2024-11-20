@@ -1,79 +1,70 @@
 import discord
 from discord.ext import commands
 import os
-import traceback
 
 intents = discord.Intents.default()
 intents.members = True
+intents.messages = True
 intents.guilds = True
 intents.voice_states = True
-bot = commands.Bot(command_prefix="!", intents=intents, reconnect=True)
+
+bot = commands.Bot(command_prefix="!", intents=intents)
 
 TOKEN = os.getenv('DISCORD_TOKEN')
-INTRO_CHANNEL_ID = 1285729396971274332
-SECRET_ROLE_NAME = "秘密のロール"
+INTRO_CHANNEL_ID = 1285729396971274332  # 自己紹介チャンネルID
+ANONYMOUS_CHANNEL_NAME = "目安箱"  # 匿名メッセージ用チャンネル名
+SECRET_ROLE_NAME = "秘密のロール"  # BOTが反応しないロール名
 
-introductions = {}
 
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
 
+
 @bot.event
 async def on_voice_state_update(member, before, after):
-    try:
-        if member.bot or before.channel == after.channel:
-            return
+    if member.bot:
+        return
 
+    intro_channel = bot.get_channel(INTRO_CHANNEL_ID)
+
+    if after.channel and (before.channel != after.channel):
         if any(role.name == SECRET_ROLE_NAME for role in member.roles):
             return
 
-        intro_channel = bot.get_channel(INTRO_CHANNEL_ID)
+        messages = []
+        async for message in intro_channel.history(limit=500):
+            if message.author == member:
+                messages.append(message)
 
-        if after.channel and before.channel is None:
-            intro_text = await fetch_introduction(member, intro_channel)
-            if after.channel.id not in introductions:
-                introductions[after.channel.id] = {}
-            introductions[after.channel.id][member.id] = intro_text
-            await update_introduction_messages(after.channel)
+        channel = after.channel
+        await channel.purge(limit=100, check=lambda m: m.author == bot.user)
 
-        elif before.channel and after.channel is None:
-            if before.channel.id in introductions and member.id in introductions[before.channel.id]:
-                del introductions[before.channel.id][member.id]
-            await update_introduction_messages(before.channel)
+        if messages:
+            for msg in messages:
+                embed = discord.Embed(
+                    title=f"{member.display_name}さんの自己紹介",
+                    description=msg.content,
+                    color=discord.Color.blue(),
+                )
+                embed.set_thumbnail(url=member.avatar.url if member.avatar else "")
+                await channel.send(embed=embed)
+        else:
+            await channel.send(
+                f"{member.display_name}さんが入室しましたが、自己紹介が見つかりませんでした。"
+            )
 
-        elif before.channel and after.channel:
-            if before.channel.id in introductions and member.id in introductions[before.channel.id]:
-                del introductions[before.channel.id][member.id]
-            intro_text = await fetch_introduction(member, intro_channel)
-            if after.channel.id not in introductions:
-                introductions[after.channel.id] = {}
-            introductions[after.channel.id][member.id] = intro_text
-            await update_introduction_messages(before.channel)
-            await update_introduction_messages(after.channel)
 
-    except Exception as e:
-        print(f"Error in on_voice_state_update: {e}")
-        traceback.print_exc()
-
-async def fetch_introduction(member, intro_channel):
-    async for message in intro_channel.history(limit=500):
-        if message.author == member:
-            return message.content
-    return "自己紹介が見つかりませんでした。"
-
-async def update_introduction_messages(channel):
-    await channel.purge(limit=100, check=lambda m: m.author == bot.user)
-    if channel.id not in introductions:
+@bot.event
+async def on_message(message):
+    if message.author.bot or not message.guild:
         return
 
-    for user_id, intro_text in introductions[channel.id].items():
-        user = bot.get_user(user_id)
-        if user and channel.guild.get_member(user.id).voice.channel == channel:
-            embed = discord.Embed(title=f"{user.display_name}の自己紹介", color=discord.Color.blue())
-            embed.add_field(name="自己紹介", value=intro_text, inline=False)
-            embed.set_thumbnail(url=user.avatar.url)
-            await channel.send(embed=embed)
+    if message.channel.name == ANONYMOUS_CHANNEL_NAME:
+        await message.delete()
+        await message.channel.send(f"匿名のメッセージ: {message.content}")
+
+    await bot.process_commands(message)
+
 
 bot.run(TOKEN)
-
