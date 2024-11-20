@@ -10,8 +10,12 @@ intents.voice_states = True
 bot = commands.Bot(command_prefix="!", intents=intents, reconnect=True)
 
 TOKEN = os.getenv('DISCORD_TOKEN')
-INTRO_CHANNEL_ID = 1285729396971274332
+INTRO_CHANNEL_ID = 1285729396971274332  # 自己紹介チャンネルのID
+ANONYMOUS_CHANNEL_ID = 1308544883899764746  # 目安箱チャンネルのID
 SECRET_ROLE_NAME = "秘密のロール"
+
+# ブロックする不適切な言葉リスト
+BLOCKED_WORDS = ["死ね", "ちんち", "まんこ"]  # 具体的な単語を追加
 
 introductions = {}
 
@@ -75,7 +79,25 @@ async def update_introduction_messages(channel):
             embed.set_thumbnail(url=user.avatar.url)
             await channel.send(embed=embed)
 
-bot.run(TOKEN)
+@bot.event
+async def on_message(message):
+    if message.author.bot or message.guild is None:
+        return
+
+    if message.channel.id == ANONYMOUS_CHANNEL_ID:
+        if any(blocked_word in message.content.lower() for blocked_word in BLOCKED_WORDS):
+            await message.channel.send(f"{message.author.mention} 不適切な内容が含まれているため、投稿は許可されません。")
+            return
+
+        anonymous_message = message.content
+        
+        embed = discord.Embed(
+            description=anonymous_message,
+            color=discord.Color.gray()
+        )
+        embed.set_author(name="匿名のメッセージ")
+        
+        await message.channel.send(embed=embed)
 
     await bot.process_commands(message)
 
