@@ -12,7 +12,7 @@ bot = commands.Bot(command_prefix="!", intents=intents, reconnect=True)
 TOKEN = os.getenv('DISCORD_TOKEN')
 INTRO_CHANNEL_ID = 1285729396971274332  # 自己紹介チャンネルのID
 SECRET_ROLE_NAME = "秘密のロール"  # 秘密のロール名
-ANONYMOUS_CHANNEL_ID = 1308905282897707072
+ANONYMOUS_CHANNEL_ID = None  # 匿名メッセージチャンネルのID (初期値はNone)
 
 introductions = {}
 
