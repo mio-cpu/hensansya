@@ -77,11 +77,15 @@ async def on_message(message):
     # 匿名メッセージ用チャンネルでの処理
     if message.channel.id == ANONYMOUS_CHANNEL_ID:
         try:
-            # 元のメッセージ内容を取得
-            original_content = message.content.strip()
+            # デバッグ用ログ
+            print(f"Received message: '{message.content}' from {message.author}")
 
-            # メッセージ内容が空か確認
-            if not original_content and not message.attachments:
+            # メッセージ内容と添付ファイルを確認
+            original_content = message.content.strip() if message.content else ""
+            has_attachments = len(message.attachments) > 0
+
+            if not original_content and not has_attachments:
+                # メッセージ内容が空かつ添付ファイルがない場合
                 await message.delete()
                 await message.channel.send("匿名のメッセージは空白にはできません。")
                 return
@@ -89,15 +93,15 @@ async def on_message(message):
             # メッセージを削除
             await message.delete()
 
-            # 匿名メッセージの作成
-            if original_content and message.attachments:
+            # 匿名メッセージを送信
+            if original_content and has_attachments:
                 # テキスト + 添付ファイル
                 files = [await attachment.to_file() for attachment in message.attachments]
                 await message.channel.send(
                     content=f"匿名のメッセージ: {original_content}",
                     files=files,
                 )
-            elif message.attachments:
+            elif has_attachments:
                 # 添付ファイルのみ
                 files = [await attachment.to_file() for attachment in message.attachments]
                 await message.channel.send(content="匿名のメッセージ:", files=files)
