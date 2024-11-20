@@ -65,8 +65,8 @@ async def on_message(message):
         return
 
     try:
-        # メッセージの内容を確認
-        print(f"Received message content: '{message.content}'")
+        # メッセージの内容をデバッグ
+        print(f"[DEBUG] Received message: '{message.content}' from {message.author} in {message.channel.name}")
 
         # メッセージを削除
         await message.delete()
@@ -79,7 +79,7 @@ async def on_message(message):
         # Embedを作成
         embed = discord.Embed(
             title="匿名メッセージ",
-            description=message.content,  # メッセージ内容を表示
+            description=message.content,
             color=discord.Color.blurple()
         )
         embed.set_footer(text="目安箱より")
@@ -88,9 +88,8 @@ async def on_message(message):
         await message.channel.send(embed=embed)
 
     except Exception as e:
-        print(f"Error in on_message: {e}")
+        print(f"[ERROR] An exception occurred in on_message: {e}")
         traceback.print_exc()
-
 
 async def fetch_introduction(member, intro_channel):
     async for message in intro_channel.history(limit=500):
