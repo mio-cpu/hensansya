@@ -14,8 +14,7 @@ INTRO_CHANNEL_ID = 1285729396971274332  # 自己紹介チャンネルのID
 ANONYMOUS_CHANNEL_ID = 1308544883899764746  # 目安箱チャンネルのID
 SECRET_ROLE_NAME = "秘密のロール"
 
-# ブロックする不適切な言葉リスト
-BLOCKED_WORDS = ["暴言1", "卑猥な言葉2", "禁止語句3"]  # 具体的な単語を追加
+BLOCKED_WORDS = ["暴言1", "卑猥な言葉2", "禁止語句3"]  # 不適切な単語を追加
 
 introductions = {}
 
@@ -97,9 +96,15 @@ async def on_message(message):
         )
         embed.set_author(name="匿名のメッセージ")
 
-        await message.delete()  # 元のメッセージを削除
-        await message.channel.send(embed=embed)
+        try:
+            await message.delete()  # 元のメッセージを削除
+            await message.channel.send(embed=embed)
+        except discord.Forbidden:
+            print("メッセージを削除する権限がありません")
+        except discord.HTTPException as e:
+            print(f"メッセージ送信中にエラーが発生しました: {e}")
 
     await bot.process_commands(message)
 
 bot.run(TOKEN)
+
