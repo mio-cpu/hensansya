@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import os
 import traceback
+from anonymous_message import *  # 匿名メッセージ機能をインポート
 
 intents = discord.Intents.default()
 intents.members = True
