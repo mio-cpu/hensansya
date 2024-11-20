@@ -9,11 +9,11 @@ intents.members = True
 intents.guilds = True
 intents.voice_states = True
 intents.messages = True  # メッセージイベントを有効化
-
 bot = commands.Bot(command_prefix="!", intents=intents, reconnect=True)
 
 TOKEN = os.getenv('DISCORD_TOKEN')
 INTRO_CHANNEL_ID = 1285729396971274332
+ANONYMOUS_CHANNEL_ID = 1308544883899764746  # 目安箱のチャンネルID
 SECRET_ROLE_NAME = "秘密のロール"
 
 introductions = {}
@@ -59,6 +59,26 @@ async def on_voice_state_update(member, before, after):
         print(f"Error in on_voice_state_update: {e}")
         traceback.print_exc()
 
+@bot.event
+async def on_message(message):
+    if message.channel.id != ANONYMOUS_CHANNEL_ID or message.author.bot:
+        return
+
+    try:
+        await message.delete()  # 元のメッセージを削除
+
+        embed = discord.Embed(
+            title="匿名メッセージ",
+            description=message.content,
+            color=discord.Color.blurple()
+        )
+        embed.set_footer(text="目安箱より")
+        await message.channel.send(embed=embed)
+
+    except Exception as e:
+        print(f"Error in on_message: {e}")
+        traceback.print_exc()
+
 async def fetch_introduction(member, intro_channel):
     async for message in intro_channel.history(limit=500):
         if message.author == member:
@@ -78,13 +98,4 @@ async def update_introduction_messages(channel):
             embed.set_thumbnail(url=user.avatar.url)
             await channel.send(embed=embed)
 
-# Cogのロード処理を追加
-async def load_extensions():
-    try:
-        await bot.load_extension('anonymous')  # anonymous.pyをロード
-        print("AnonymousMessages Cog loaded successfully.")
-    except Exception as e:
-        print(f"Failed to load extension anonymous: {e}")
-
-bot.loop.create_task(load_extensions())  # 起動時にロード
 bot.run(TOKEN)
