@@ -71,11 +71,20 @@ async def on_message(message):
     # 匿名メッセージ用チャンネルでの処理
     if message.channel.id == ANONYMOUS_CHANNEL_ID:
         try:
+            # 元のメッセージ内容を取得
+            original_content = message.content.strip()
+            
+            # 空メッセージを確認
+            if not original_content:
+                await message.delete()
+                await message.channel.send("匿名のメッセージは空白にはできません。")
+                return
+
             # メッセージを削除
             await message.delete()
 
             # 匿名メッセージとして再送信
-            await message.channel.send(f"匿名のメッセージ: {message.content}")
+            await message.channel.send(f"匿名のメッセージ: {original_content}")
         except discord.Forbidden:
             print("メッセージの削除権限がありません。")
         except discord.HTTPException as e:
