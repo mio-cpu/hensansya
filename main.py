@@ -65,18 +65,26 @@ async def on_message(message):
         return
 
     try:
-        await message.delete()  # 元のメッセージを削除
+        # メッセージの内容を確認
+        print(f"Received message content: '{message.content}'")
 
-        if not message.content.strip():
+        # メッセージを削除
+        await message.delete()
+
+        # 内容が完全に空の場合をチェック
+        if not message.content or message.content.strip() == "":
             await message.channel.send("匿名メッセージが空のため、送信できません。", delete_after=10)
             return
 
+        # Embedを作成
         embed = discord.Embed(
             title="匿名メッセージ",
-            description=message.content,  # メッセージ内容を埋め込む
+            description=message.content,  # メッセージ内容を表示
             color=discord.Color.blurple()
         )
         embed.set_footer(text="目安箱より")
+
+        # Embedを送信
         await message.channel.send(embed=embed)
 
     except Exception as e:
