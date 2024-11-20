@@ -86,11 +86,9 @@ async def on_message(message):
 
     if message.channel.id == ANONYMOUS_CHANNEL_ID:
         if any(blocked_word in message.content.lower() for blocked_word in BLOCKED_WORDS):
-            await message.delete()
             await message.channel.send(f"{message.author.mention} 不適切な内容が含まれているため、投稿は許可されません。")
             return
 
-        await message.delete()
         anonymous_message = message.content
         
         embed = discord.Embed(
