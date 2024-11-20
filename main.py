@@ -2,11 +2,14 @@ import discord
 from discord.ext import commands
 import os
 import traceback
+import asyncio
 
 intents = discord.Intents.default()
 intents.members = True
 intents.guilds = True
 intents.voice_states = True
+intents.messages = True  # メッセージイベントを有効化
+
 bot = commands.Bot(command_prefix="!", intents=intents, reconnect=True)
 
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -75,4 +78,13 @@ async def update_introduction_messages(channel):
             embed.set_thumbnail(url=user.avatar.url)
             await channel.send(embed=embed)
 
+# Cogのロード処理を追加
+async def load_extensions():
+    try:
+        await bot.load_extension('anonymous')  # anonymous.pyをロード
+        print("AnonymousMessages Cog loaded successfully.")
+    except Exception as e:
+        print(f"Failed to load extension anonymous: {e}")
+
+bot.loop.create_task(load_extensions())  # 起動時にロード
 bot.run(TOKEN)
