@@ -81,26 +81,37 @@ async def update_introduction_messages(channel):
 
 @bot.event
 async def on_message(message):
+    # ボットやDMには反応しない
     if message.author.bot or message.guild is None:
         return
 
+    # 目安箱チャンネルでの匿名メッセージ
     if message.channel.id == ANONYMOUS_CHANNEL_ID:
-        print("Anonymous message detected")  # デバッグ: 匿名メッセージが検出されたか確認
+        print("目安箱にメッセージが検出されました")  # デバッグ用
+
+        # 不適切な単語チェック
         if any(blocked_word in message.content.lower() for blocked_word in BLOCKED_WORDS):
+            await message.delete()
             await message.channel.send(f"{message.author.mention} 不適切な内容が含まれているため、投稿は許可されません。")
             return
 
+        # 匿名メッセージとして再投稿
         anonymous_message = message.content
-        
         embed = discord.Embed(
             description=anonymous_message,
             color=discord.Color.gray()
         )
         embed.set_author(name="匿名のメッセージ")
-        
-        await message.channel.send(embed=embed)
-        return
 
+        try:
+            await message.delete()
+            await message.channel.send(embed=embed)
+            print("匿名メッセージを送信しました")  # デバッグ用
+        except Exception as e:
+            print(f"匿名メッセージの送信に失敗しました: {e}")  # エラーハンドリング
+        return  # 処理を終了
+
+    # 通常メッセージのコマンドを処理
     await bot.process_commands(message)
 
 bot.run(TOKEN)
