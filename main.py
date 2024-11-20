@@ -81,18 +81,22 @@ async def update_introduction_messages(channel):
 
 @bot.event
 async def on_message(message):
+    print("メッセージが検出されました")  # on_messageが呼び出されているか確認
+
     # ボットやDMには反応しない
     if message.author.bot or message.guild is None:
+        print("ボットまたはDMからのメッセージなので無視します")
         return
 
     # 目安箱チャンネルでの匿名メッセージ
     if message.channel.id == ANONYMOUS_CHANNEL_ID:
-        print("目安箱にメッセージが検出されました")  # デバッグ用
+        print("目安箱にメッセージが投稿されました")  # 目安箱チャンネルであるか確認
 
         # 不適切な単語チェック
         if any(blocked_word in message.content.lower() for blocked_word in BLOCKED_WORDS):
             await message.delete()
             await message.channel.send(f"{message.author.mention} 不適切な内容が含まれているため、投稿は許可されません。")
+            print("不適切な単語が検出され、メッセージが削除されました")
             return
 
         # 匿名メッセージとして再投稿
@@ -106,12 +110,10 @@ async def on_message(message):
         try:
             await message.delete()
             await message.channel.send(embed=embed)
-            print("匿名メッセージを送信しました")  # デバッグ用
+            print("匿名メッセージが正常に送信されました")  # 匿名メッセージが送信されたか確認
         except Exception as e:
             print(f"匿名メッセージの送信に失敗しました: {e}")  # エラーハンドリング
-        return  # 処理を終了
+        return
 
-    # 通常メッセージのコマンドを処理
     await bot.process_commands(message)
-
 bot.run(TOKEN)
