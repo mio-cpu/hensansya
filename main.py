@@ -67,9 +67,13 @@ async def on_message(message):
     try:
         await message.delete()  # 元のメッセージを削除
 
+        if not message.content.strip():
+            await message.channel.send("匿名メッセージが空のため、送信できません。", delete_after=10)
+            return
+
         embed = discord.Embed(
             title="匿名メッセージ",
-            description=message.content,
+            description=message.content,  # メッセージ内容を埋め込む
             color=discord.Color.blurple()
         )
         embed.set_footer(text="目安箱より")
@@ -78,6 +82,7 @@ async def on_message(message):
     except Exception as e:
         print(f"Error in on_message: {e}")
         traceback.print_exc()
+
 
 async def fetch_introduction(member, intro_channel):
     async for message in intro_channel.history(limit=500):
