@@ -85,6 +85,7 @@ async def on_message(message):
         return
 
     if message.channel.id == ANONYMOUS_CHANNEL_ID:
+        print("Anonymous message detected")  # デバッグ: 匿名メッセージが検出されたか確認
         if any(blocked_word in message.content.lower() for blocked_word in BLOCKED_WORDS):
             await message.channel.send(f"{message.author.mention} 不適切な内容が含まれているため、投稿は許可されません。")
             return
@@ -98,7 +99,7 @@ async def on_message(message):
         embed.set_author(name="匿名のメッセージ")
         
         await message.channel.send(embed=embed)
-        return  # ここで処理を終了して、bot.process_commandsを実行しない
+        return
 
     await bot.process_commands(message)
 
