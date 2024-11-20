@@ -2,17 +2,22 @@ import discord
 from discord.ext import commands
 import os
 
+# 必要な権限を有効にした Intents を定義
 intents = discord.Intents.default()
 intents.members = True
 intents.messages = True
 intents.guilds = True
 intents.voice_states = True
 
+# Bot の定義
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# 環境変数からトークンを取得
 TOKEN = os.getenv('DISCORD_TOKEN')
+
+# 設定
 INTRO_CHANNEL_ID = 1285729396971274332  # 自己紹介チャンネルID
-ANONYMOUS_CHANNEL_NAME = "目安箱"  # 匿名メッセージ用チャンネル名
+ANONYMOUS_CHANNEL_ID = 1308544883899764746  # 匿名メッセージ用チャンネルID
 SECRET_ROLE_NAME = "秘密のロール"  # BOTが反応しないロール名
 
 
@@ -28,9 +33,10 @@ async def on_voice_state_update(member, before, after):
 
     intro_channel = bot.get_channel(INTRO_CHANNEL_ID)
 
+    # チャンネルに移動した場合、自己紹介を送信
     if after.channel and (before.channel != after.channel):
         if any(role.name == SECRET_ROLE_NAME for role in member.roles):
-            return
+            return  # 指定のロールを持つユーザーはスキップ
 
         messages = []
         async for message in intro_channel.history(limit=500):
@@ -38,6 +44,8 @@ async def on_voice_state_update(member, before, after):
                 messages.append(message)
 
         channel = after.channel
+
+        # 過去の BOT メッセージを削除
         await channel.purge(limit=100, check=lambda m: m.author == bot.user)
 
         if messages:
@@ -60,11 +68,22 @@ async def on_message(message):
     if message.author.bot or not message.guild:
         return
 
-    if message.channel.name == ANONYMOUS_CHANNEL_NAME:
-        await message.delete()
-        await message.channel.send(f"匿名のメッセージ: {message.content}")
+    # 匿名メッセージ用チャンネルでの処理
+    if message.channel.id == ANONYMOUS_CHANNEL_ID:
+        try:
+            # メッセージを削除
+            await message.delete()
 
+            # 匿名メッセージとして再送信
+            await message.channel.send(f"匿名のメッセージ: {message.content}")
+        except discord.Forbidden:
+            print("メッセージの削除権限がありません。")
+        except discord.HTTPException as e:
+            print(f"エラーが発生しました: {e}")
+
+    # 他のコマンドを処理
     await bot.process_commands(message)
 
 
+# Bot を実行
 bot.run(TOKEN)
