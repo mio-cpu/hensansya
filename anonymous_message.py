@@ -8,7 +8,7 @@ intents.guilds = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 TOKEN = os.getenv('DISCORD_TOKEN')
-ANONYMOUS_CHANNEL_ID = 123456789012345678  # 目安箱のチャンネルID
+ANONYMOUS_CHANNEL_ID = 1308544883899764746  # 目安箱のチャンネルID
 
 @bot.event
 async def on_ready():
