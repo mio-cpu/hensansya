@@ -15,7 +15,7 @@ ANONYMOUS_CHANNEL_ID = 1308544883899764746  # 目安箱チャンネルのID
 SECRET_ROLE_NAME = "秘密のロール"
 
 # ブロックする不適切な言葉リスト
-BLOCKED_WORDS = ["死ね", "ちんち", "まんこ"]  # 具体的な単語を追加
+BLOCKED_WORDS = ["暴言1", "卑猥な言葉2", "禁止語句3"]  # 具体的な単語を追加
 
 introductions = {}
 
@@ -90,13 +90,14 @@ async def on_message(message):
             return
 
         anonymous_message = message.content
-        
+
         embed = discord.Embed(
             description=anonymous_message,
             color=discord.Color.gray()
         )
         embed.set_author(name="匿名のメッセージ")
-        
+
+        await message.delete()  # 元のメッセージを削除
         await message.channel.send(embed=embed)
 
     await bot.process_commands(message)
