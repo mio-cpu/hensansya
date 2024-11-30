@@ -40,8 +40,14 @@ async def on_ready():
     print(f'Logged in as {bot.user}')
     load_settings()
     try:
-        synced = await bot.tree.sync()  
-        print(f"Synced {len(synced)} commands")
+        # 全体での同期を実行
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} global commands")
+
+        # 古いグローバルコマンドを削除
+        bot.tree.clear_commands(guild=None)
+        await bot.tree.sync()
+        print("Old global commands cleared and re-synced.")
     except Exception as e:
         print(f"Error syncing commands: {e}")
 
