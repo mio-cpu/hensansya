@@ -2,52 +2,26 @@ import discord
 from discord.ext import commands
 import os
 import traceback
-import json
 
 intents = discord.Intents.default()
 intents.members = True
 intents.guilds = True
 intents.voice_states = True
+intents.messages = True  # メッセージイベントに対応するために追加
 bot = commands.Bot(command_prefix="!", intents=intents, reconnect=True)
 
 TOKEN = os.getenv('DISCORD_TOKEN')
-INTRO_CHANNEL_ID = None
-SECRET_ROLE_NAME = None
+INTRO_CHANNEL_ID = 1311065842624102400
+SECRET_ROLE_NAME = "秘密のロール"
+
 introductions = {}
-
-# 設定ファイルから情報を読み込む
-def load_settings():
-    global INTRO_CHANNEL_ID, SECRET_ROLE_NAME
-    try:
-        with open("settings.json", "r") as file:
-            settings = json.load(file)
-            INTRO_CHANNEL_ID = settings.get("INTRO_CHANNEL_ID")
-            SECRET_ROLE_NAME = settings.get("SECRET_ROLE_NAME")
-    except FileNotFoundError:
-        print("settings.json が見つかりません。設定を保存してください。")
-
-# 設定ファイルに情報を保存する
-def save_settings():
-    settings = {
-        "INTRO_CHANNEL_ID": INTRO_CHANNEL_ID,
-        "SECRET_ROLE_NAME": SECRET_ROLE_NAME
-    }
-    with open("settings.json", "w") as file:
-        json.dump(settings, file)
 
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
-    load_settings()
     try:
-        # 全体での同期を実行
         synced = await bot.tree.sync()
-        print(f"Synced {len(synced)} global commands")
-
-        # 古いグローバルコマンドを削除
-        bot.tree.clear_commands(guild=None)
-        await bot.tree.sync()
-        print("Old global commands cleared and re-synced.")
+        print(f"Synced {len(synced)} commands")
     except Exception as e:
         print(f"Error syncing commands: {e}")
 
@@ -107,16 +81,26 @@ async def update_introduction_messages(channel):
             embed.set_thumbnail(url=user.avatar.url)
             await channel.send(embed=embed)
 
-# スラッシュコマンドでINTRO_CHANNEL_IDとSECRET_ROLE_NAMEを設定
-@bot.tree.command(name="設定", description="自己紹介チャンネルIDと秘密のロール名を設定します")
-async def set_config(interaction: discord.Interaction, intro_channel_id: str, secret_role_name: str):
-    global INTRO_CHANNEL_ID, SECRET_ROLE_NAME
-    try:
-        INTRO_CHANNEL_ID = int(intro_channel_id)
-        SECRET_ROLE_NAME = secret_role_name
-        save_settings()
-        await interaction.response.send_message("設定が保存されました。", ephemeral=True)
-    except ValueError:
-        await interaction.response.send_message("無効なIDが入力されました。", ephemeral=True)
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
+
+    if message.channel.id == INTRO_CHANNEL_ID:
+        introductions[message.author.id] = message.content
+        await update_introduction_messages_in_voice_channels(message.author)
+
+    await bot.process_commands(message)
+
+@bot.event
+async def on_message_edit(before, after):
+    if after.channel.id == INTRO_CHANNEL_ID and not after.author.bot:
+        introductions[after.author.id] = after.content
+        await update_introduction_messages_in_voice_channels(after.author)
+
+async def update_introduction_messages_in_voice_channels(member):
+    for voice_channel in member.guild.voice_channels:
+        if member.id in introductions.get(voice_channel.id, {}):
+            await update_introduction_messages(voice_channel)
 
 bot.run(TOKEN)
