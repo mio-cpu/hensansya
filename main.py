@@ -11,6 +11,8 @@ intents.voice_states = True
 bot = commands.Bot(command_prefix="!", intents=intents, reconnect=True)
 
 TOKEN = os.getenv('DISCORD_TOKEN')
+GUILD_ID = 1311062725207658546  # あなたのサーバーID
+
 INTRO_CHANNEL_ID = None
 SECRET_ROLE_NAME = None
 introductions = {}
@@ -40,8 +42,9 @@ async def on_ready():
     print(f'Logged in as {bot.user}')
     load_settings()
     try:
-        synced = await bot.tree.sync()  
-        print(f"Synced {len(synced)} commands")
+        guild = discord.Object(id=GUILD_ID)  # ギルド（サーバー）コマンドとして同期
+        synced = await bot.tree.sync(guild=guild)
+        print(f"Synced {len(synced)} commands to the guild {GUILD_ID}")
     except Exception as e:
         print(f"Error syncing commands: {e}")
 
