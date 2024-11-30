@@ -1,18 +1,37 @@
 import discord
 from discord.ext import commands
 import os
+import json
 import traceback
 
 intents = discord.Intents.default()
 intents.members = True
 intents.guilds = True
 intents.voice_states = True
-intents.messages = True  # メッセージイベントに対応するために追加
+intents.messages = True
 bot = commands.Bot(command_prefix="!", intents=intents, reconnect=True)
 
+# トークンを環境変数から取得
 TOKEN = os.getenv('DISCORD_TOKEN')
-INTRO_CHANNEL_ID = 1311065842624102400
-SECRET_ROLE_NAME = "秘密のロール"
+
+# 設定を保持するための JSON ファイルのパス
+CONFIG_FILE = "config.json"
+
+# JSONファイルから設定を読み込む
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"INTRO_CHANNEL_ID": None, "SECRET_ROLE_NAME": None}
+
+# 設定をJSONファイルに保存する
+def save_config(config):
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False, indent=4)
+
+config = load_config()
+INTRO_CHANNEL_ID = config.get("INTRO_CHANNEL_ID")
+SECRET_ROLE_NAME = config.get("SECRET_ROLE_NAME")
 
 introductions = {}
 
@@ -30,12 +49,10 @@ async def on_voice_state_update(member, before, after):
     try:
         if member.bot or before.channel == after.channel:
             return
-
         if any(role.name == SECRET_ROLE_NAME for role in member.roles):
             return
 
         intro_channel = bot.get_channel(INTRO_CHANNEL_ID)
-
         if after.channel and before.channel is None:
             intro_text = await fetch_introduction(member, intro_channel)
             if after.channel.id not in introductions:
@@ -80,6 +97,24 @@ async def update_introduction_messages(channel):
             embed.add_field(name="自己紹介", value=intro_text, inline=False)
             embed.set_thumbnail(url=user.avatar.url)
             await channel.send(embed=embed)
+
+# スラッシュコマンドで INTRO_CHANNEL_ID を設定する
+@bot.tree.command(name="set_intro_channel", description="自己紹介チャンネルを設定します")
+async def set_intro_channel(interaction: discord.Interaction, channel: discord.TextChannel):
+    global INTRO_CHANNEL_ID
+    INTRO_CHANNEL_ID = channel.id
+    config["INTRO_CHANNEL_ID"] = INTRO_CHANNEL_ID
+    save_config(config)
+    await interaction.response.send_message(f"自己紹介チャンネルを {channel.mention} に設定しました。", ephemeral=True)
+
+# スラッシュコマンドで SECRET_ROLE_NAME を設定する
+@bot.tree.command(name="set_secret_role", description="秘密のロールを設定します")
+async def set_secret_role(interaction: discord.Interaction, role: discord.Role):
+    global SECRET_ROLE_NAME
+    SECRET_ROLE_NAME = role.name
+    config["SECRET_ROLE_NAME"] = SECRET_ROLE_NAME
+    save_config(config)
+    await interaction.response.send_message(f"秘密のロールを `{SECRET_ROLE_NAME}` に設定しました。", ephemeral=True)
 
 @bot.event
 async def on_message(message):
