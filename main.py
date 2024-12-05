@@ -22,7 +22,7 @@ SECRET_ROLE_NAME = "秘密のロール"
 
 # ボット起動時に使用するデータ
 bot.introductions = {}  # {member_id: intro_text}
-bot.voice_channel_map = {}  # {channel_id: {member_id}}
+bot.voice_channel_map = {}  # {channel_id: {member_id: intro_text}}
 
 # Bot 起動時のイベント
 @bot.event
@@ -74,15 +74,20 @@ async def handle_introduction_update(member, before_channel, after_channel):
 
 # 自己紹介を取得またはキャッシュから取得
 async def get_or_fetch_introduction(member, intro_channel):
+    # キャッシュから取得
     if member.id in bot.introductions:
-        return bot.introductions[member.id]
+        intro_text = bot.introductions[member.id]
+        if intro_text:  # 内容が空でないことを確認
+            return intro_text
 
+    # チャンネル履歴から取得
     async for message in intro_channel.history(limit=500):
-        if message.author == member:
+        if message.author == member and message.content.strip():  # 空白でない内容
             bot.introductions[member.id] = message.content
             return message.content
 
-    return "自己紹介が見つかりませんでした。"
+    # 自己紹介が見つからない場合
+    return "自己紹介が登録されていません。自己紹介チャンネルで自己紹介を投稿してください。"
 
 # 自己紹介のメッセージを更新
 async def update_introduction_messages(channel):
@@ -93,9 +98,15 @@ async def update_introduction_messages(channel):
 
     for user_id, intro_text in bot.voice_channel_map[channel.id].items():
         user = bot.get_user(user_id)
-        if user and channel.guild.get_member(user.id).voice.channel == channel:
-            embed = discord.Embed(title=f"{user.display_name}の自己紹介", color=discord.Color.blue())
-            embed.add_field(name="自己紹介", value=intro_text, inline=False)
+        member = channel.guild.get_member(user_id)
+
+        if member and member.voice and member.voice.channel == channel:
+            # Embed の生成
+            embed = discord.Embed(
+                title=f"{user.display_name}の自己紹介",
+                description=intro_text if intro_text.strip() else "（内容が登録されていません）",
+                color=discord.Color.blue()
+            )
             embed.set_thumbnail(url=user.avatar.url if user.avatar else user.default_avatar.url)
             await channel.send(embed=embed)
 
