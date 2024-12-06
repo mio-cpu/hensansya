@@ -4,6 +4,7 @@ import os
 import traceback
 import json
 from dotenv import load_dotenv
+from datetime import datetime, timedelta
 
 # 環境変数を読み込む
 load_dotenv()
@@ -19,6 +20,7 @@ intents.members = True
 intents.guilds = True
 intents.voice_states = True
 bot = commands.Bot(command_prefix="!", intents=intents, reconnect=True)
+
 GUILD_ID = 1311062725207658546  # サーバーIDを適切に設定
 
 # 設定管理クラス
@@ -58,6 +60,12 @@ class BotSettings:
 
 settings = BotSettings()
 introductions = {}
+introduction_cache = {}
+
+# エラーをログファイルに記録
+def log_error(message):
+    with open("error.log", "a") as log_file:
+        log_file.write(f"{datetime.now()}: {message}\n")
 
 # Botイベント
 @bot.event
@@ -68,7 +76,7 @@ async def on_ready():
         synced = await bot.tree.sync(guild=guild)
         print(f"Synced {len(synced)} commands for guild {GUILD_ID}")
     except Exception as e:
-        print(f"Error syncing commands: {e}")
+        log_error(f"Error syncing commands: {e}")
         traceback.print_exc()
 
 @bot.event
@@ -88,36 +96,60 @@ async def on_voice_state_update(member, before, after):
             print("Error: Intro channel not set or not found.")
             return
 
+        current_time = datetime.now()
+
+        # チャンネル参加
         if after.channel and before.channel is None:
             intro_text = await fetch_introduction(member, intro_channel)
-            if after.channel.id not in introductions:
-                introductions[after.channel.id] = {}
-            introductions[after.channel.id][member.id] = intro_text
+            introductions.setdefault(after.channel.id, {})[member.id] = {
+                "intro": intro_text,
+                "timestamp": current_time,
+            }
             await update_introduction_messages(after.channel)
 
+        # チャンネル退出
         elif before.channel and after.channel is None:
-            if before.channel.id in introductions and member.id in introductions[before.channel.id]:
-                del introductions[before.channel.id][member.id]
+            if before.channel.id in introductions:
+                introductions[before.channel.id].pop(member.id, None)
             await update_introduction_messages(before.channel)
 
+        # チャンネル移動
         elif before.channel and after.channel:
-            if before.channel.id in introductions and member.id in introductions[before.channel.id]:
-                del introductions[before.channel.id][member.id]
+            if before.channel.id in introductions:
+                introductions[before.channel.id].pop(member.id, None)
             intro_text = await fetch_introduction(member, intro_channel)
-            if after.channel.id not in introductions:
-                introductions[after.channel.id] = {}
-            introductions[after.channel.id][member.id] = intro_text
+            introductions.setdefault(after.channel.id, {})[member.id] = {
+                "intro": intro_text,
+                "timestamp": current_time,
+            }
             await update_introduction_messages(before.channel)
             await update_introduction_messages(after.channel)
+
+        # 古いデータを削除
+        for channel_id in list(introductions.keys()):
+            introductions[channel_id] = {
+                user_id: data
+                for user_id, data in introductions[channel_id].items()
+                if current_time - data["timestamp"] <= timedelta(hours=1)
+            }
+            if not introductions[channel_id]:
+                del introductions[channel_id]
 
     except Exception as e:
-        print(f"Error in on_voice_state_update: {e}")
+        log_error(f"Error in on_voice_state_update: {e}")
         traceback.print_exc()
 
 async def fetch_introduction(member, intro_channel):
+    # キャッシュを確認
+    if member.id in introduction_cache:
+        return introduction_cache[member.id]
+
+    # キャッシュになければ取得
     async for message in intro_channel.history(limit=500):
         if message.author == member:
+            introduction_cache[member.id] = message.content
             return message.content
+
     return "自己紹介が見つかりませんでした。"
 
 async def update_introduction_messages(channel):
@@ -125,18 +157,24 @@ async def update_introduction_messages(channel):
     if channel.id not in introductions or not introductions[channel.id]:
         return
 
-    for user_id, intro_text in introductions[channel.id].items():
+    for user_id, data in introductions[channel.id].items():
         user = bot.get_user(user_id)
-        if user and channel.guild.get_member(user.id).voice.channel == channel:
+        if user and (channel.guild.get_member(user.id).voice and channel.guild.get_member(user.id).voice.channel == channel):
             embed = discord.Embed(title=f"{user.display_name}の自己紹介", color=discord.Color.blue())
-            embed.add_field(name="自己紹介", value=intro_text, inline=False)
-            embed.set_thumbnail(url=user.avatar.url)
+            embed.add_field(name="自己紹介", value=data["intro"], inline=False)
+            embed.set_thumbnail(url=user.avatar.url if user.avatar else user.default_avatar.url)
             await channel.send(embed=embed)
 
 # スラッシュコマンド
 @bot.tree.command(name="設定", description="自己紹介チャンネルIDと秘密のロールIDを設定します")
 async def set_config(interaction: discord.Interaction, intro_channel_id: str, secret_role_id: str):
     try:
+        intro_channel = bot.get_channel(int(intro_channel_id))
+        secret_role = interaction.guild.get_role(int(secret_role_id))
+        if not intro_channel or not secret_role:
+            await interaction.response.send_message("指定されたIDが無効です。", ephemeral=True)
+            return
+
         settings.intro_channel_id = int(intro_channel_id)
         settings.secret_role_id = int(secret_role_id)
         await interaction.response.send_message("設定が保存されました。", ephemeral=True)
