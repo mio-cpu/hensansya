@@ -25,7 +25,7 @@ GUILD_ID = 1311062725207658546  # サーバーIDを適切に設定
 class BotSettings:
     def __init__(self, filename="settings.json"):
         self.filename = filename
-        self.data = {"INTRO_CHANNEL_ID": None, "SECRET_ROLE_NAME": None}
+        self.data = {"INTRO_CHANNEL_ID": None, "SECRET_ROLE_ID": None}
         self.load_settings()
 
     def load_settings(self):
@@ -48,12 +48,12 @@ class BotSettings:
         self.save_settings()
 
     @property
-    def secret_role_name(self):
-        return self.data.get("SECRET_ROLE_NAME")
+    def secret_role_id(self):
+        return self.data.get("SECRET_ROLE_ID")
 
-    @secret_role_name.setter
-    def secret_role_name(self, value):
-        self.data["SECRET_ROLE_NAME"] = value
+    @secret_role_id.setter
+    def secret_role_id(self, value):
+        self.data["SECRET_ROLE_ID"] = value
         self.save_settings()
 
 settings = BotSettings()
@@ -77,12 +77,11 @@ async def on_voice_state_update(member, before, after):
         if member.bot or before.channel == after.channel:
             return
 
-        # ロール名の比較を厳密化
-        secret_role_name = settings.secret_role_name
-        if secret_role_name:
-            if any(secret_role_name.lower() == role.name.lower() for role in member.roles):
-                print(f"Skipping introduction for {member.display_name} due to secret role.")
-                return
+        # ロールIDで比較
+        secret_role_id = settings.secret_role_id
+        if secret_role_id and any(role.id == secret_role_id for role in member.roles):
+            print(f"Skipping introduction for {member.display_name} due to secret role.")
+            return
 
         intro_channel = bot.get_channel(settings.intro_channel_id)
         if not intro_channel:
@@ -135,11 +134,11 @@ async def update_introduction_messages(channel):
             await channel.send(embed=embed)
 
 # スラッシュコマンド
-@bot.tree.command(name="設定", description="自己紹介チャンネルIDと秘密のロール名を設定します")
-async def set_config(interaction: discord.Interaction, intro_channel_id: str, secret_role_name: str):
+@bot.tree.command(name="設定", description="自己紹介チャンネルIDと秘密のロールIDを設定します")
+async def set_config(interaction: discord.Interaction, intro_channel_id: str, secret_role_id: str):
     try:
         settings.intro_channel_id = int(intro_channel_id)
-        settings.secret_role_name = secret_role_name
+        settings.secret_role_id = int(secret_role_id)
         await interaction.response.send_message("設定が保存されました。", ephemeral=True)
     except ValueError:
         await interaction.response.send_message("無効なIDが入力されました。", ephemeral=True)
