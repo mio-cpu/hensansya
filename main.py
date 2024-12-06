@@ -41,15 +41,22 @@ async def on_voice_state_update(member, before, after):
         if member.bot:
             return
 
-        if not before.channel and after.channel:
-            # 新しいチャンネルに参加
-            await handle_introduction_update(member, None, after.channel)
-        elif before.channel and not after.channel:
-            # チャンネルから退出
-            await handle_introduction_update(member, before.channel, None)
-        elif before.channel and after.channel:
-            # チャンネルを移動
-            await handle_introduction_update(member, before.channel, after.channel)
+        # 秘密のロールを持つメンバーは処理対象外
+        secret_role = discord.utils.get(member.guild.roles, name=SECRET_ROLE_NAME)
+        if secret_role in member.roles:
+            return
+
+        # チャンネルの参加/退出/移動のみを処理
+        if before.channel != after.channel:
+            if not before.channel and after.channel:
+                # 新しいチャンネルに参加
+                await handle_introduction_update(member, None, after.channel)
+            elif before.channel and not after.channel:
+                # チャンネルから退出
+                await handle_introduction_update(member, before.channel, None)
+            elif before.channel and after.channel:
+                # チャンネルを移動
+                await handle_introduction_update(member, before.channel, after.channel)
 
     except Exception as e:
         print(f"Error in on_voice_state_update: {e}")
