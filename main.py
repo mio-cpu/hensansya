@@ -77,8 +77,12 @@ async def on_voice_state_update(member, before, after):
         if member.bot or before.channel == after.channel:
             return
 
-        if any(role.name == settings.secret_role_name for role in member.roles):
-            return
+        # ロール名の比較を厳密化
+        secret_role_name = settings.secret_role_name
+        if secret_role_name:
+            if any(secret_role_name.lower() == role.name.lower() for role in member.roles):
+                print(f"Skipping introduction for {member.display_name} due to secret role.")
+                return
 
         intro_channel = bot.get_channel(settings.intro_channel_id)
         if not intro_channel:
