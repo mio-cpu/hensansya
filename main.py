@@ -9,9 +9,14 @@ from datetime import datetime, timedelta
 # 環境変数を読み込む
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
+GUILD_ID = int(os.getenv("DISCORD_GUILD_ID", 0))  # 環境変数で管理
 
 if not TOKEN:
-    print("Error: DISCORD_TOKEN is not set. Please set it as an environment variable.")
+    print("Error: DISCORD_TOKEN is not set. Please check your .env file.")
+    exit(1)
+
+if not GUILD_ID:
+    print("Error: DISCORD_GUILD_ID is not set. Please check your .env file.")
     exit(1)
 
 # Botの設定
@@ -20,8 +25,6 @@ intents.members = True
 intents.guilds = True
 intents.voice_states = True
 bot = commands.Bot(command_prefix="!", intents=intents, reconnect=True)
-
-GUILD_ID = 1311062725207658546  # サーバーIDを適切に設定
 
 # 設定管理クラス
 class BotSettings:
@@ -33,8 +36,13 @@ class BotSettings:
     def load_settings(self):
         if not os.path.exists(self.filename):
             self.save_settings()
-        with open(self.filename, "r") as file:
-            self.data = json.load(file)
+        try:
+            with open(self.filename, "r") as file:
+                self.data = json.load(file)
+        except (json.JSONDecodeError, IOError):
+            print("Error: Invalid settings.json. Reinitializing...")
+            self.data = {"INTRO_CHANNEL_ID": None, "SECRET_ROLE_ID": None}
+            self.save_settings()
 
     def save_settings(self):
         with open(self.filename, "w") as file:
@@ -63,8 +71,12 @@ introductions = {}
 introduction_cache = {}
 
 # エラーをログファイルに記録
+log_dir = "logs"
+os.makedirs(log_dir, exist_ok=True)
+log_file_path = os.path.join(log_dir, f"error_{datetime.now().strftime('%Y-%m-%d')}.log")
+
 def log_error(message):
-    with open("error.log", "a") as log_file:
+    with open(log_file_path, "a") as log_file:
         log_file.write(f"{datetime.now()}: {message}\n")
 
 # Botイベント
@@ -76,7 +88,8 @@ async def on_ready():
         synced = await bot.tree.sync(guild=guild)
         print(f"Synced {len(synced)} commands for guild {GUILD_ID}")
     except Exception as e:
-        log_error(f"Error syncing commands: {e}")
+        error_message = f"Error syncing commands: {e}"
+        log_error(error_message)
         traceback.print_exc()
 
 @bot.event
@@ -85,7 +98,6 @@ async def on_voice_state_update(member, before, after):
         if member.bot or before.channel == after.channel:
             return
 
-        # ロールIDで比較
         secret_role_id = settings.secret_role_id
         if secret_role_id and any(role.id == secret_role_id for role in member.roles):
             print(f"Skipping introduction for {member.display_name} due to secret role.")
@@ -136,15 +148,14 @@ async def on_voice_state_update(member, before, after):
                 del introductions[channel_id]
 
     except Exception as e:
-        log_error(f"Error in on_voice_state_update: {e}")
+        error_message = f"Error in on_voice_state_update: {e}"
+        log_error(error_message)
         traceback.print_exc()
 
 async def fetch_introduction(member, intro_channel):
-    # キャッシュを確認
     if member.id in introduction_cache:
         return introduction_cache[member.id]
 
-    # キャッシュになければ取得
     async for message in intro_channel.history(limit=500):
         if message.author == member:
             introduction_cache[member.id] = message.content
@@ -153,17 +164,23 @@ async def fetch_introduction(member, intro_channel):
     return "自己紹介が見つかりませんでした。"
 
 async def update_introduction_messages(channel):
-    await channel.purge(limit=100, check=lambda m: m.author == bot.user)
+    def is_bot_message(m):
+        return m.author == bot.user
+
+    await channel.purge(limit=100, check=is_bot_message)
     if channel.id not in introductions or not introductions[channel.id]:
         return
 
     for user_id, data in introductions[channel.id].items():
         user = bot.get_user(user_id)
-        if user and (channel.guild.get_member(user.id).voice and channel.guild.get_member(user.id).voice.channel == channel):
-            embed = discord.Embed(title=f"{user.display_name}の自己紹介", color=discord.Color.blue())
-            embed.add_field(name="自己紹介", value=data["intro"], inline=False)
-            embed.set_thumbnail(url=user.avatar.url if user.avatar else user.default_avatar.url)
-            await channel.send(embed=embed)
+        if user:
+            member = channel.guild.get_member(user.id)
+            if member and member.voice and member.voice.channel == channel:
+                avatar_url = user.avatar.url if user.avatar else user.default_avatar.url
+                embed = discord.Embed(title=f"{user.display_name}の自己紹介", color=discord.Color.blue())
+                embed.add_field(name="自己紹介", value=data["intro"], inline=False)
+                embed.set_thumbnail(url=avatar_url)
+                await channel.send(embed=embed)
 
 # スラッシュコマンド
 @bot.tree.command(name="設定", description="自己紹介チャンネルIDと秘密のロールIDを設定します")
@@ -171,8 +188,11 @@ async def set_config(interaction: discord.Interaction, intro_channel_id: str, se
     try:
         intro_channel = bot.get_channel(int(intro_channel_id))
         secret_role = interaction.guild.get_role(int(secret_role_id))
-        if not intro_channel or not secret_role:
-            await interaction.response.send_message("指定されたIDが無効です。", ephemeral=True)
+        if not intro_channel:
+            await interaction.response.send_message("指定されたチャンネルIDが無効です。", ephemeral=True)
+            return
+        if not secret_role:
+            await interaction.response.send_message("指定されたロールIDが無効です。", ephemeral=True)
             return
 
         settings.intro_channel_id = int(intro_channel_id)
