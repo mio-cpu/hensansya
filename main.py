@@ -41,13 +41,12 @@ async def on_voice_state_update(member, before, after):
         if member.bot:
             return
 
-        # 秘密のロールを持つメンバーを無視
-        secret_role = discord.utils.get(member.guild.roles, name=SECRET_ROLE_NAME)
-        if secret_role in member.roles:
-            return
-
-        # チャンネル変更を検出（マイクやカメラのオン/オフは無視）
+        # チャンネル移動時のみ処理を実行（マイクのオン/オフは無視）
         if before.channel != after.channel:
+            # 秘密のロールを持つ場合は無視
+            if any(role.name == SECRET_ROLE_NAME for role in member.roles):
+                return
+
             if not before.channel and after.channel:
                 # 新しいチャンネルに参加
                 await handle_introduction_update(member, None, after.channel)
@@ -104,8 +103,10 @@ async def update_introduction_messages(channel):
     if channel.id not in bot.voice_channel_map:
         return
 
-    # 新しい自己紹介メッセージを送信
-    for user_id, intro_text in bot.voice_channel_map[channel.id].items():
+    # 辞書のコピーを作成してからループ
+    voice_channel_map_copy = bot.voice_channel_map[channel.id].copy()
+
+    for user_id, intro_text in voice_channel_map_copy.items():
         user = bot.get_user(user_id)
         member = channel.guild.get_member(user_id)
 
