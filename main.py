@@ -3,47 +3,73 @@ from discord.ext import commands
 import os
 import traceback
 import json
+from dotenv import load_dotenv
 
+# 環境変数を読み込む
+load_dotenv()
+TOKEN = os.getenv("DISCORD_TOKEN")
+
+if not TOKEN:
+    print("Error: DISCORD_TOKEN is not set. Please set it as an environment variable.")
+    exit(1)
+
+# Botの設定
 intents = discord.Intents.default()
 intents.members = True
 intents.guilds = True
 intents.voice_states = True
 bot = commands.Bot(command_prefix="!", intents=intents, reconnect=True)
+GUILD_ID = 1311062725207658546  # サーバーIDを適切に設定
 
-TOKEN = os.getenv('DISCORD_TOKEN')
-INTRO_CHANNEL_ID = None
-SECRET_ROLE_NAME = None
+# 設定管理クラス
+class BotSettings:
+    def __init__(self, filename="settings.json"):
+        self.filename = filename
+        self.data = {"INTRO_CHANNEL_ID": None, "SECRET_ROLE_NAME": None}
+        self.load_settings()
+
+    def load_settings(self):
+        if not os.path.exists(self.filename):
+            self.save_settings()
+        with open(self.filename, "r") as file:
+            self.data = json.load(file)
+
+    def save_settings(self):
+        with open(self.filename, "w") as file:
+            json.dump(self.data, file)
+
+    @property
+    def intro_channel_id(self):
+        return self.data.get("INTRO_CHANNEL_ID")
+
+    @intro_channel_id.setter
+    def intro_channel_id(self, value):
+        self.data["INTRO_CHANNEL_ID"] = value
+        self.save_settings()
+
+    @property
+    def secret_role_name(self):
+        return self.data.get("SECRET_ROLE_NAME")
+
+    @secret_role_name.setter
+    def secret_role_name(self, value):
+        self.data["SECRET_ROLE_NAME"] = value
+        self.save_settings()
+
+settings = BotSettings()
 introductions = {}
 
-# 設定ファイルから情報を読み込む
-def load_settings():
-    global INTRO_CHANNEL_ID, SECRET_ROLE_NAME
-    try:
-        with open("settings.json", "r") as file:
-            settings = json.load(file)
-            INTRO_CHANNEL_ID = settings.get("INTRO_CHANNEL_ID")
-            SECRET_ROLE_NAME = settings.get("SECRET_ROLE_NAME")
-    except FileNotFoundError:
-        print("settings.json が見つかりません。設定を保存してください。")
-
-# 設定ファイルに情報を保存する
-def save_settings():
-    settings = {
-        "INTRO_CHANNEL_ID": INTRO_CHANNEL_ID,
-        "SECRET_ROLE_NAME": SECRET_ROLE_NAME
-    }
-    with open("settings.json", "w") as file:
-        json.dump(settings, file)
-
+# Botイベント
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
-    load_settings()
+    guild = discord.Object(id=GUILD_ID)
     try:
-        synced = await bot.tree.sync()  
-        print(f"Synced {len(synced)} commands")
+        synced = await bot.tree.sync(guild=guild)
+        print(f"Synced {len(synced)} commands for guild {GUILD_ID}")
     except Exception as e:
         print(f"Error syncing commands: {e}")
+        traceback.print_exc()
 
 @bot.event
 async def on_voice_state_update(member, before, after):
@@ -51,10 +77,13 @@ async def on_voice_state_update(member, before, after):
         if member.bot or before.channel == after.channel:
             return
 
-        if any(role.name == SECRET_ROLE_NAME for role in member.roles):
+        if any(role.name == settings.secret_role_name for role in member.roles):
             return
 
-        intro_channel = bot.get_channel(INTRO_CHANNEL_ID)
+        intro_channel = bot.get_channel(settings.intro_channel_id)
+        if not intro_channel:
+            print("Error: Intro channel not set or not found.")
+            return
 
         if after.channel and before.channel is None:
             intro_text = await fetch_introduction(member, intro_channel)
@@ -90,7 +119,7 @@ async def fetch_introduction(member, intro_channel):
 
 async def update_introduction_messages(channel):
     await channel.purge(limit=100, check=lambda m: m.author == bot.user)
-    if channel.id not in introductions:
+    if channel.id not in introductions or not introductions[channel.id]:
         return
 
     for user_id, intro_text in introductions[channel.id].items():
@@ -101,14 +130,12 @@ async def update_introduction_messages(channel):
             embed.set_thumbnail(url=user.avatar.url)
             await channel.send(embed=embed)
 
-# スラッシュコマンドでINTRO_CHANNEL_IDとSECRET_ROLE_NAMEを設定
+# スラッシュコマンド
 @bot.tree.command(name="設定", description="自己紹介チャンネルIDと秘密のロール名を設定します")
 async def set_config(interaction: discord.Interaction, intro_channel_id: str, secret_role_name: str):
-    global INTRO_CHANNEL_ID, SECRET_ROLE_NAME
     try:
-        INTRO_CHANNEL_ID = int(intro_channel_id)
-        SECRET_ROLE_NAME = secret_role_name
-        save_settings()
+        settings.intro_channel_id = int(intro_channel_id)
+        settings.secret_role_name = secret_role_name
         await interaction.response.send_message("設定が保存されました。", ephemeral=True)
     except ValueError:
         await interaction.response.send_message("無効なIDが入力されました。", ephemeral=True)
