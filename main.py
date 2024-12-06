@@ -1,157 +1,106 @@
 import discord
 from discord.ext import commands
-import os
-import traceback
 
-# Bot インスタンス設定
 intents = discord.Intents.default()
-intents.members = True
+intents.messages = True
+intents.message_content = True
 intents.guilds = True
 intents.voice_states = True
-intents.messages = True  # メッセージイベントに対応
-bot = commands.Bot(command_prefix="!", intents=intents, reconnect=True)
+intents.members = True
 
-# 環境変数からトークン取得
-TOKEN = os.getenv('DISCORD_TOKEN')
-if not TOKEN:
-    raise RuntimeError("環境変数 'DISCORD_TOKEN' が設定されていません。")
+bot = commands.Bot(command_prefix="!", intents=intents)
 
-# 設定
-INTRO_CHANNEL_ID = 1311065842624102400
-SECRET_ROLE_NAME = "秘密のロール"
+# ボットの初期化
+bot.voice_channel_map = {}  # {channel_id: {user_id: intro_text}}
 
-# ボット起動時に使用するデータ
-bot.introductions = {}  # {member_id: intro_text}
-bot.voice_channel_map = {}  # {channel_id: {member_id: intro_text}}
-
-# Bot 起動時のイベント
 @bot.event
 async def on_ready():
-    print(f'Logged in as {bot.user}')
-    try:
-        synced = await bot.tree.sync()
-        print(f"Synced {len(synced)} commands")
-    except Exception as e:
-        print(f"Error syncing commands: {e}")
+    print(f"Bot logged in as {bot.user}")
 
-# ボイスステート変更時のイベント
 @bot.event
 async def on_voice_state_update(member, before, after):
-    try:
-        if member.bot:
-            return
+    # ユーザーがボイスチャンネルを移動した場合
+    if before.channel != after.channel:
+        await handle_introduction_update(member, before.channel, after.channel)
 
-        # チャンネル移動時のみ処理を実行（マイクのオン/オフは無視）
-        if before.channel != after.channel:
-            # 秘密のロールを持つ場合は無視
-            if any(role.name == SECRET_ROLE_NAME for role in member.roles):
-                return
-
-            if not before.channel and after.channel:
-                # 新しいチャンネルに参加
-                await handle_introduction_update(member, None, after.channel)
-            elif before.channel and not after.channel:
-                # チャンネルから退出
-                await handle_introduction_update(member, before.channel, None)
-            elif before.channel and after.channel:
-                # チャンネルを移動
-                await handle_introduction_update(member, before.channel, after.channel)
-
-    except Exception as e:
-        print(f"Error in on_voice_state_update: {e}")
-        traceback.print_exc()
-
-# 自己紹介更新処理
 async def handle_introduction_update(member, before_channel, after_channel):
-    intro_channel = bot.get_channel(INTRO_CHANNEL_ID)
-
-    # 退出処理
     if before_channel:
-        bot.voice_channel_map.get(before_channel.id, {}).pop(member.id, None)
+        # 退室時の処理
+        if before_channel.id in bot.voice_channel_map:
+            if member.id in bot.voice_channel_map[before_channel.id]:
+                del bot.voice_channel_map[before_channel.id][member.id]
+            # チャンネルが空なら辞書から削除
+            if not bot.voice_channel_map[before_channel.id]:
+                del bot.voice_channel_map[before_channel.id]
         await update_introduction_messages(before_channel)
 
-    # 参加処理
     if after_channel:
-        intro_text = await get_or_fetch_introduction(member, intro_channel)
+        # 入室時の処理
         if after_channel.id not in bot.voice_channel_map:
             bot.voice_channel_map[after_channel.id] = {}
-        bot.voice_channel_map[after_channel.id][member.id] = intro_text
+        # ユーザーの自己紹介を仮登録（後で更新可能）
+        bot.voice_channel_map[after_channel.id][member.id] = f"{member.display_name}の仮の自己紹介"
         await update_introduction_messages(after_channel)
 
-# 自己紹介を取得またはキャッシュから取得
-async def get_or_fetch_introduction(member, intro_channel):
-    # キャッシュから取得
-    if member.id in bot.introductions:
-        intro_text = bot.introductions[member.id]
-        if intro_text:  # 内容が空でないことを確認
-            return intro_text
-
-    # チャンネル履歴から取得
-    async for message in intro_channel.history(limit=500):
-        if message.author == member and message.content.strip():  # 空白でない内容
-            bot.introductions[member.id] = message.content
-            return message.content
-
-    # 自己紹介が見つからない場合
-    return "自己紹介が登録されていません。自己紹介チャンネルで自己紹介を投稿してください。"
-
-# 自己紹介のメッセージを更新
 async def update_introduction_messages(channel):
-    # 既存の自己紹介メッセージを削除
-    await channel.purge(limit=100, check=lambda m: m.author == bot.user and m.embeds and "自己紹介" in m.embeds[0].title)
+    # メッセージ削除処理
+    try:
+        await channel.purge(
+            limit=100,
+            check=lambda m: (
+                m.author == bot.user and
+                m.embeds and
+                "自己紹介" in m.embeds[0].title
+            )
+        )
+    except discord.errors.NotFound:
+        print(f"Message not found during purge in {channel.name}")
+    except Exception as e:
+        print(f"Unexpected error during purge: {e}")
 
+    # チャンネルの自己紹介マップが存在しない場合は終了
     if channel.id not in bot.voice_channel_map:
         return
 
-    # 辞書のコピーを作成してからループ
+    # 辞書のコピーを作成してループ
     voice_channel_map_copy = bot.voice_channel_map[channel.id].copy()
-
     for user_id, intro_text in voice_channel_map_copy.items():
         user = bot.get_user(user_id)
         member = channel.guild.get_member(user_id)
 
+        # ユーザーが現在そのチャンネルにいる場合のみ処理
         if member and member.voice and member.voice.channel == channel:
-            # Embed の生成
-            embed = discord.Embed(
-                title=f"{user.display_name}の自己紹介",
-                description=intro_text if intro_text.strip() else "（内容が登録されていません）",
-                color=discord.Color.blue()
-            )
-            embed.set_thumbnail(url=user.avatar.url if user.avatar else user.default_avatar.url)
-            await channel.send(embed=embed)
+            try:
+                # Embed を作成して送信
+                embed = discord.Embed(
+                    title=f"{user.display_name}の自己紹介",
+                    description=intro_text if intro_text.strip() else "（内容が登録されていません）",
+                    color=discord.Color.blue()
+                )
+                embed.set_thumbnail(url=user.avatar.url if user.avatar else user.default_avatar.url)
+                await channel.send(embed=embed)
+            except Exception as e:
+                print(f"Error sending introduction message for {user.display_name}: {e}")
 
-# メッセージ送信時のイベント
-@bot.event
-async def on_message(message):
-    try:
-        if message.author.bot:
-            return
+# コマンド：自己紹介を更新
+@bot.command()
+async def set_intro(ctx, *, intro_text):
+    # ユーザーが現在のボイスチャンネルにいるか確認
+    if ctx.author.voice and ctx.author.voice.channel:
+        channel = ctx.author.voice.channel
 
-        if message.channel.id == INTRO_CHANNEL_ID:
-            bot.introductions[message.author.id] = message.content
-            await update_introduction_messages_in_voice_channels(message.author)
+        # ユーザーの自己紹介を更新
+        if channel.id not in bot.voice_channel_map:
+            bot.voice_channel_map[channel.id] = {}
+        bot.voice_channel_map[channel.id][ctx.author.id] = intro_text
 
-        await bot.process_commands(message)
-    except Exception as e:
-        print(f"Error in on_message: {e}")
-        traceback.print_exc()
+        await ctx.send(f"{ctx.author.display_name}さんの自己紹介を更新しました！")
+        # 自己紹介メッセージを再生成
+        await update_introduction_messages(channel)
+    else:
+        await ctx.send("ボイスチャンネルに参加していません！")
 
-# メッセージ編集時のイベント
-@bot.event
-async def on_message_edit(before, after):
-    try:
-        if after.channel.id == INTRO_CHANNEL_ID and not after.author.bot:
-            bot.introductions[after.author.id] = after.content
-            await update_introduction_messages_in_voice_channels(after.author)
-    except Exception as e:
-        print(f"Error in on_message_edit: {e}")
-        traceback.print_exc()
-
-# 全てのボイスチャンネルにおける自己紹介メッセージを更新
-async def update_introduction_messages_in_voice_channels(member):
-    for voice_channel in member.guild.voice_channels:
-        if member.id in bot.voice_channel_map.get(voice_channel.id, {}):
-            await update_introduction_messages(voice_channel)
-
-# Bot の起動
+# トークンを環境変数から取得して実行
+import os
+TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 bot.run(TOKEN)
