@@ -15,8 +15,8 @@ if not TOKEN:
     print("Error: DISCORD_TOKEN is not set. Please check your .env file.")
     exit(1)
 
-if not GUILD_ID:
-    print("Error: DISCORD_GUILD_ID is not set. Please check your .env file.")
+if not GUILD_ID or GUILD_ID <= 0:
+    print("Error: DISCORD_GUILD_ID is not set or invalid. Please check your .env file.")
     exit(1)
 
 # Botの設定
@@ -69,6 +69,7 @@ class BotSettings:
 settings = BotSettings()
 introductions = {}
 introduction_cache = {}
+CACHE_EXPIRATION = timedelta(hours=1)
 
 # エラーをログファイルに記録
 log_dir = "logs"
@@ -78,6 +79,17 @@ log_file_path = os.path.join(log_dir, f"error_{datetime.now().strftime('%Y-%m-%d
 def log_error(message):
     with open(log_file_path, "a") as log_file:
         log_file.write(f"{datetime.now()}: {message}\n")
+        log_file.write(traceback.format_exc() + "\n")
+
+# キャッシュを定期的にクリーンアップ
+def clean_introduction_cache():
+    current_time = datetime.now()
+    global introduction_cache
+    introduction_cache = {
+        user_id: data
+        for user_id, data in introduction_cache.items()
+        if current_time - data["timestamp"] < CACHE_EXPIRATION
+    }
 
 # Botイベント
 @bot.event
@@ -88,8 +100,7 @@ async def on_ready():
         synced = await bot.tree.sync(guild=guild)
         print(f"Synced {len(synced)} commands for guild {GUILD_ID}")
     except Exception as e:
-        error_message = f"Error syncing commands: {e}"
-        log_error(error_message)
+        log_error(f"Error syncing commands: {e}")
         traceback.print_exc()
 
 @bot.event
@@ -138,27 +149,21 @@ async def on_voice_state_update(member, before, after):
             await update_introduction_messages(after.channel)
 
         # 古いデータを削除
-        for channel_id in list(introductions.keys()):
-            introductions[channel_id] = {
-                user_id: data
-                for user_id, data in introductions[channel_id].items()
-                if current_time - data["timestamp"] <= timedelta(hours=1)
-            }
-            if not introductions[channel_id]:
-                del introductions[channel_id]
+        clean_introduction_cache()
 
     except Exception as e:
-        error_message = f"Error in on_voice_state_update: {e}"
-        log_error(error_message)
-        traceback.print_exc()
+        log_error(f"Error in on_voice_state_update: {e}")
 
 async def fetch_introduction(member, intro_channel):
     if member.id in introduction_cache:
-        return introduction_cache[member.id]
+        return introduction_cache[member.id]["content"]
 
     async for message in intro_channel.history(limit=500):
         if message.author == member:
-            introduction_cache[member.id] = message.content
+            introduction_cache[member.id] = {
+                "content": message.content,
+                "timestamp": datetime.now(),
+            }
             return message.content
 
     return "自己紹介が見つかりませんでした。"
@@ -189,10 +194,10 @@ async def set_config(interaction: discord.Interaction, intro_channel_id: str, se
         intro_channel = bot.get_channel(int(intro_channel_id))
         secret_role = interaction.guild.get_role(int(secret_role_id))
         if not intro_channel:
-            await interaction.response.send_message("指定されたチャンネルIDが無効です。", ephemeral=True)
+            await interaction.response.send_message("指定されたチャンネルIDが無効です。存在するか確認してください。", ephemeral=True)
             return
         if not secret_role:
-            await interaction.response.send_message("指定されたロールIDが無効です。", ephemeral=True)
+            await interaction.response.send_message("指定されたロールIDが無効です。存在するか確認してください。", ephemeral=True)
             return
 
         settings.intro_channel_id = int(intro_channel_id)
